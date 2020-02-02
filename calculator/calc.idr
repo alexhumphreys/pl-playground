@@ -29,25 +29,25 @@ numeral : Parser Expression
 numeral = do i <- integer
              pure (Numeral i)
 
-minus : Parser Char
-minus = satisfy (== '-')
+minus : Parser ()
+minus = token "-"
 
-lparen : Parser Char
-lparen = satisfy (== '(')
+lparen : Parser ()
+lparen = token ("(")
 
-rparen : Parser Char
-rparen = satisfy (== ')')
+rparen : Parser ()
+rparen = token (")")
 
-infixOp : Parser Char -> (E -> E -> E) -> Parser (E -> E -> E)
+infixOp : Parser () -> (E -> E -> E) -> Parser (E -> E -> E)
 infixOp l ctor = do
   _ <- l
   pure ctor
 
 addOp : Parser (Expression -> Expression -> Expression)
-addOp = infixOp (char '+') Plus <|> infixOp (char '-') Minus
+addOp = infixOp (token "+") Plus <|> infixOp (token "-") Minus
 
 mulOp : Parser (Expression -> Expression -> Expression)
-mulOp = infixOp (char '*') Times <|> infixOp (char '/') Times
+mulOp = infixOp (token "*") Times <|> infixOp (token "/") Times
 
 mutual
   expression : Parser Expression
@@ -70,6 +70,7 @@ mutual
     pure expr
 
   factor : Parser Expression
-  factor = numeral
-       <|> subExp
-       <|> negate
+  factor = spaces *>
+           (numeral
+           <|> subExp
+           <|> negate) <* spaces
