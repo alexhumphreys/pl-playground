@@ -1,5 +1,6 @@
-module Imperative.DataStructures
+module DataStructures
 
+%access public export
 data BBinOp = And | Or
 Show BBinOp where
   show And = "AND"

@@ -3,6 +3,8 @@ module Imperative.Lexer
 import DataStructures
 import Lightyear.Strings
 
+%access export
+
 rIf : Parser ()
 rIf = token "if"
 
