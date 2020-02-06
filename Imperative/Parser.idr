@@ -1,4 +1,4 @@
-module Imperative.Lexer
+module Imperative.Parser
 
 import DataStructures as DS
 import Lexer
@@ -8,8 +8,9 @@ import Lightyear.Char
 import Lightyear.Strings
 
 identifier : Parser DS.AExpr
-identifier = do i <- many letter
-                pure (Var (pack i))
+identifier = do f <- satisfy (isAlpha)
+                i <- many letter
+                pure (Var (pack (f :: i)))
 
 intConst : Parser DS.AExpr
 intConst = do i <- integer
@@ -28,3 +29,28 @@ addOp : Parser (AExpr -> AExpr -> AExpr)
 addOp = infixOp (rPlus) (ABinary Add) <|> infixOp (rMinus) (ABinary Subtract)
 mulOp : Parser (AExpr -> AExpr -> AExpr)
 mulOp = infixOp (rTimes) (ABinary Multiply) <|> infixOp (rDivide) (ABinary Divide)
+
+mutual
+  expression : Parser AExpr
+  expression = chainl1 term addOp
+
+  term : Parser DS.AExpr
+  term = chainl1 factor mulOp
+
+  factor : Parser DS.AExpr
+  factor = intConst
+    <|> identifier
+    <|> negate
+    <|> subExpr
+
+  negate : Parser DS.AExpr
+  negate = do (token "-")
+              f <- factor
+              pure $ Neg f
+
+  subExpr : Parser DS.AExpr
+  subExpr = do
+    _ <- token "("
+    expr <- expression
+    _ <- token ")"
+    pure expr
