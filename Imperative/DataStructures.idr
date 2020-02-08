@@ -38,8 +38,8 @@ data BExpr = BoolConst Bool
 Show BExpr where
   show (BoolConst b) = "BOOLCONST " ++ (show b)
   show (Not b) = "NOT " ++ (show b)
-  show (BBinary o l r) = "RBINARY " ++ (show o) ++ (show l) ++ (show r)
-  show (RBinary o l r) = "ABINARY " ++ (show o) ++ (show l) ++ (show r)
+  show (BBinary o l r) = "BBINARY " ++ (show o) ++ (show l) ++ (show r)
+  show (RBinary o l r) = "RBINARY " ++ (show o) ++ (show l) ++ (show r)
 
 data Stmt = Seq (List Stmt)
           | Assign String AExpr

@@ -16,10 +16,6 @@ intConst : Parser DS.AExpr
 intConst = do i <- integer
               pure (IntConst i)
 
--- TODO come back for parens aExpression
-aTerm : Parser DS.AExpr
-aTerm = intConst <|> identifier
-
 infixOp : Parser () -> (AExpr -> AExpr -> AExpr) -> Parser (AExpr -> AExpr -> AExpr)
 infixOp l ctor = do
   _ <- l
@@ -54,3 +50,15 @@ mutual
     expr <- expression
     _ <- token ")"
     pure expr
+
+-- relational
+relationalOp : Parser (AExpr -> AExpr -> BExpr)
+relationalOp = (rGT) *> pure (RBinary Greater) <|> (rLT) *> pure (RBinary Less)
+
+mutual
+  rExpression : Parser BExpr
+  rExpression =
+    do a1 <- expression
+       op <- relationalOp
+       a2 <- expression
+       pure (op a1 a2)
