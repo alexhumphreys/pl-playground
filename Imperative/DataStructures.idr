@@ -32,15 +32,16 @@ Show AExpr where
   show (ABinary o l r) = "ABINARY " ++ (show o) ++ (show l) ++ (show r)
 
 data BExpr = BoolConst Bool
-           | Not BExpr
+           | BNot BExpr
            | BBinary BBinOp BExpr BExpr
            | RBinary RBinOp AExpr AExpr
 Show BExpr where
   show (BoolConst b) = "BOOLCONST " ++ (show b)
-  show (Not b) = "NOT " ++ (show b)
+  show (BNot b) = "BNOT " ++ (show b)
   show (BBinary o l r) = "BBINARY " ++ (show o) ++ (show l) ++ (show r)
   show (RBinary o l r) = "RBINARY " ++ (show o) ++ (show l) ++ (show r)
 
+{-
 data Stmt = Seq (List Stmt)
           | Assign String AExpr
           | If BExpr Stmt Stmt
@@ -52,3 +53,4 @@ Show Stmt where
   show (If b t f) = "IF " ++ (show b) ++ (show t) ++ (show f)
   show (While b s) = "While " ++ (show b) ++ (show s)
   show Skip = "SKIP"
+  -}

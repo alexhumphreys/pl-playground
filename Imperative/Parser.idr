@@ -16,7 +16,7 @@ intConst : Parser DS.AExpr
 intConst = do i <- integer
               pure (IntConst i)
 
-infixOp : Parser () -> (AExpr -> AExpr -> AExpr) -> Parser (AExpr -> AExpr -> AExpr)
+infixOp : Parser () -> (a -> a -> a) -> Parser (a -> a -> a)
 infixOp l ctor = do
   _ <- l
   pure ctor
@@ -27,8 +27,8 @@ mulOp : Parser (AExpr -> AExpr -> AExpr)
 mulOp = infixOp (rTimes) (ABinary Multiply) <|> infixOp (rDivide) (ABinary Divide)
 
 mutual
-  expression : Parser AExpr
-  expression = chainl1 term addOp
+  aExpression : Parser AExpr
+  aExpression = chainl1 term addOp
 
   term : Parser DS.AExpr
   term = chainl1 factor mulOp
@@ -47,7 +47,7 @@ mutual
   subExpr : Parser DS.AExpr
   subExpr = do
     _ <- token "("
-    expr <- expression
+    expr <- aExpression
     _ <- token ")"
     pure expr
 
@@ -55,10 +55,25 @@ mutual
 relationalOp : Parser (AExpr -> AExpr -> BExpr)
 relationalOp = (rGT) *> pure (RBinary Greater) <|> (rLT) *> pure (RBinary Less)
 
+rExpression : Parser BExpr
+rExpression =
+  do a1 <- aExpression
+     op <- relationalOp
+     a2 <- aExpression
+     pure (op a1 a2)
+
+-- come back for parens bExpression
 mutual
-  rExpression : Parser BExpr
-  rExpression =
-    do a1 <- expression
-       op <- relationalOp
-       a2 <- expression
-       pure (op a1 a2)
+  bTerm : Parser BExpr
+  bTerm = rTrue *> pure (BoolConst True) <|> rFalse *> pure (BoolConst False) <|> rExpression
+
+  boolOp : Parser (BExpr -> BExpr -> BExpr)
+  boolOp = infixOp (rAnd) (BBinary And) <|> infixOp (rOr) (BBinary Or)
+
+  notOp : Parser (BExpr)
+  notOp = do rNot
+             b <- bExpression
+             pure (BNot b)
+
+  bExpression : Parser BExpr
+  bExpression = notOp <|> chainl1 bTerm boolOp
