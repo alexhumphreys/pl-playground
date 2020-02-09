@@ -65,7 +65,7 @@ rExpression =
 -- come back for parens bExpression
 mutual
   bTerm : Parser BExpr
-  bTerm = rTrue *> pure (BoolConst True) <|> rFalse *> pure (BoolConst False) <|> rExpression
+  bTerm = spaces *> ((rTrue *> pure (BoolConst True)) <|> (rFalse *> pure (BoolConst False)) <|> rExpression <|> subBExpr) <* spaces
 
   boolOp : Parser (BExpr -> BExpr -> BExpr)
   boolOp = infixOp (rAnd) (BBinary And) <|> infixOp (rOr) (BBinary Or)
@@ -77,3 +77,11 @@ mutual
 
   bExpression : Parser BExpr
   bExpression = notOp <|> chainl1 bTerm boolOp
+
+  subBExpr : Parser BExpr
+  subBExpr = do
+    _ <- token "("
+    expr <- bExpression
+    _ <- token ")"
+    pure expr
+

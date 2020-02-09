@@ -41,7 +41,6 @@ Show BExpr where
   show (BBinary o l r) = "BBINARY " ++ (show o) ++ (show l) ++ (show r)
   show (RBinary o l r) = "RBINARY " ++ (show o) ++ (show l) ++ (show r)
 
-{-
 data Stmt = Seq (List Stmt)
           | Assign String AExpr
           | If BExpr Stmt Stmt
@@ -53,4 +52,3 @@ Show Stmt where
   show (If b t f) = "IF " ++ (show b) ++ (show t) ++ (show f)
   show (While b s) = "While " ++ (show b) ++ (show s)
   show Skip = "SKIP"
-  -}
