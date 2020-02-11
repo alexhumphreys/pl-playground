@@ -7,46 +7,37 @@ data Assoc = AssocNone
            | AssocLeft
            | AssocRight
 
-{-
-BinaryOpParser : Type
-BinaryOpParser = (Parser () -> (Type -> Type -> Type) -> Parser (Type -> Type -> Type))
-
-UnaryOpParser : Type
-UnaryOpParser = (Parser () -> (Type -> Type) -> Parser (Type -> Type))
--}
-
 -- Parser () -> (a -> a -> a) -> Parser (a -> a -> a)
-data Operator = Infix (Parser () -> (a -> a -> a) -> Parser (a -> a -> a)) Assoc
-              | Prefix (Parser () -> (a -> a) -> Parser (a -> a))
-              | Postfix (Parser () -> (a -> a) -> Parser (a -> a))
+data Operator a = Infix (Parser () -> (a -> a -> a) -> Parser (a -> a -> a)) Assoc
+                | Prefix (Parser () -> (a -> a) -> Parser (a -> a))
+                | Postfix (Parser () -> (a -> a) -> Parser (a -> a))
 
-LO : Type
-LO = List Operator
+LO : Type -> Type
+LO a = List (Operator a)
 
-OperatorTable : Type
-OperatorTable = List LO
+OperatorTable : Type -> Type
+OperatorTable a = List (LO a)
 
-record Associations where
+record Associations type where
        constructor MkAssociations
-       rassoc : List g
-       lassoc : List g
-       nassoc : List g
-       prefixx : List g
-       postfix : List g
+       rassoc : List (Parser () -> (type -> type -> type) -> Parser (type -> type -> type))
+       lassoc : List (Parser () -> (type -> type -> type) -> Parser (type -> type -> type))
+       nassoc : List (Parser () -> (type -> type -> type) -> Parser (type -> type -> type))
+       prefixx : List (Parser () -> (type -> type) -> Parser (type -> type))
+       postfix : List (Parser () -> (type -> type) -> Parser (type -> type))
 
-ACC : Type
-ACC = (LO,LO,LO,LO,LO)
 
-buildExpressionParser : OperatorTable -> Parser f -> Parser f
-buildExpressionParser operators simpleExpr =
-  ?bar
+buildExpressionParser : (a : Type) -> OperatorTable a -> Parser a -> Parser a
+buildExpressionParser a operators simpleExpr = ?buildExpressionParser_rhs
   where
+                        {-
     makeParser : Parser ctor -> List Operator -> ctor
     makeParser term ops = ?foo
                         -- (rassoc,lassoc,nassoc,prefix,postfix)
-    splitOp : Operator -> Associations -> Associations
-    splitOp (Infix op AssocNone) (MkAssociations rassoc lassoc nassoc prefixx postfix) = MkAssociations rassoc lassoc (nassoc) prefixx postfix
-    splitOp (Infix op AssocLeft) (MkAssociations rassoc lassoc nassoc prefixx postfix) = MkAssociations rassoc lassoc nassoc prefixx postfix
-    splitOp (Infix op AssocRight) (MkAssociations rassoc lassoc nassoc prefixx postfix) = MkAssociations rassoc lassoc nassoc prefixx postfix
-    splitOp (Prefix op) (MkAssociations rassoc lassoc nassoc prefixx postfix) = MkAssociations rassoc lassoc nassoc prefixx postfix
-    splitOp (Postfix op) (MkAssociations rassoc lassoc nassoc prefixx postfix) = MkAssociations rassoc lassoc nassoc prefixx postfix
+                        -}
+    splitOp : (a : Type) -> Operator a -> Associations a -> Associations a
+    splitOp x (Infix op AssocNone) acc = record { nassoc = (op :: (nassoc acc)) } acc
+    splitOp x (Infix op AssocLeft) acc = record { lassoc = (op :: (lassoc acc)) } acc
+    splitOp x (Infix op AssocRight) acc = record { rassoc = (op :: (rassoc acc)) } acc
+    splitOp x (Prefix op) acc = record { prefixx = (op :: (prefixx acc)) } acc
+    splitOp x (Postfix op) acc = record { postfix = (op :: (postfix acc)) } acc
