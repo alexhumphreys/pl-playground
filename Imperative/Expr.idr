@@ -18,26 +18,28 @@ LO a = List (Operator a)
 OperatorTable : Type -> Type
 OperatorTable a = List (LO a)
 
-record Associations type where
-       constructor MkAssociations
-       rassoc : List (Parser () -> (type -> type -> type) -> Parser (type -> type -> type))
-       lassoc : List (Parser () -> (type -> type -> type) -> Parser (type -> type -> type))
-       nassoc : List (Parser () -> (type -> type -> type) -> Parser (type -> type -> type))
-       prefixx : List (Parser () -> (type -> type) -> Parser (type -> type))
-       postfix : List (Parser () -> (type -> type) -> Parser (type -> type))
+BinaryOperator : Type -> Type
+BinaryOperator a = List (Parser () -> (a -> a -> a) -> Parser (a -> a -> a))
 
+UnaryOperator : Type -> Type
+UnaryOperator a = List (Parser () -> (a -> a) -> Parser (a -> a))
+
+ReturnType : Type -> Type
+ReturnType a = (BinaryOperator a, BinaryOperator a, BinaryOperator a, UnaryOperator a, UnaryOperator a)
 
 buildExpressionParser : (a : Type) -> OperatorTable a -> Parser a -> Parser a
-buildExpressionParser a operators simpleExpr = ?buildExpressionParser_rhs
+buildExpressionParser a operators simpleExpr =
+  foldl (makeParser) simpleExpr operators
   where
-                        {-
-    makeParser : Parser ctor -> List Operator -> ctor
-    makeParser term ops = ?foo
-                        -- (rassoc,lassoc,nassoc,prefix,postfix)
-                        -}
-    splitOp : (a : Type) -> Operator a -> Associations a -> Associations a
-    splitOp x (Infix op AssocNone) acc = record { nassoc = (op :: (nassoc acc)) } acc
-    splitOp x (Infix op AssocLeft) acc = record { lassoc = (op :: (lassoc acc)) } acc
-    splitOp x (Infix op AssocRight) acc = record { rassoc = (op :: (rassoc acc)) } acc
-    splitOp x (Prefix op) acc = record { prefixx = (op :: (prefixx acc)) } acc
-    splitOp x (Postfix op) acc = record { postfix = (op :: (postfix acc)) } acc
+    splitOp : (a : Type) -> Operator a -> ReturnType a -> ReturnType a
+    splitOp x (Infix op AssocNone) (rassoc, lassoc, nassoc, prefixx, postfix) = (rassoc, lassoc, op :: nassoc, prefixx, postfix)
+    splitOp x (Infix op AssocLeft) (rassoc, lassoc, nassoc, prefixx, postfix) = (rassoc, op :: lassoc, nassoc, prefixx, postfix)
+    splitOp x (Infix op AssocRight) (rassoc, lassoc, nassoc, prefixx, postfix) = (op :: rassoc, lassoc, nassoc, prefixx, postfix)
+    splitOp x (Prefix op) (rassoc, lassoc, nassoc, prefixx, postfix) = (rassoc, lassoc, nassoc, op :: prefixx, postfix)
+    splitOp x (Postfix op) (rassoc, lassoc, nassoc, prefixx, postfix) = (rassoc, lassoc, nassoc, prefixx, op :: postfix)
+
+    makeParser : Parser a -> LO a -> Parser a
+    makeParser term ops =
+      let (rassoc,lassoc,nassoc
+               ,prefix,postfix) = foldr (splitOp a) ([],[],[],[],[]) ops in
+          ?foo
