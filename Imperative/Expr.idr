@@ -7,10 +7,9 @@ data Assoc = AssocNone
            | AssocLeft
            | AssocRight
 
--- Parser () -> (a -> a -> a) -> Parser (a -> a -> a)
-data Operator a = Infix (Parser () -> (a -> a -> a) -> Parser (a -> a -> a)) Assoc
-                | Prefix (Parser () -> (a -> a) -> Parser (a -> a))
-                | Postfix (Parser () -> (a -> a) -> Parser (a -> a))
+data Operator a = Infix (Parser (a -> a -> a)) Assoc
+                | Prefix (Parser (a -> a))
+                | Postfix (Parser (a -> a))
 
 LO : Type -> Type
 LO a = List (Operator a)
@@ -19,25 +18,23 @@ OperatorTable : Type -> Type
 OperatorTable a = List (LO a)
 
 BinaryOperator : Type -> Type
-BinaryOperator a = List (Parser () -> (a -> a -> a) -> Parser (a -> a -> a))
+BinaryOperator a = List (Parser (a -> a -> a))
 
 UnaryOperator : Type -> Type
-UnaryOperator a = List (Parser () -> (a -> a) -> Parser (a -> a))
+UnaryOperator a = List (Parser (a -> a))
 
 data Ops a = BinOp (BinaryOperator a) | UnOp (UnaryOperator a)
 
 ReturnType : Type -> Type
 ReturnType a = (BinaryOperator a, BinaryOperator a, BinaryOperator a, UnaryOperator a, UnaryOperator a)
 
-toParserBin : BinaryOperator a -> Parser () -> (a -> a -> a) -> Parser (a -> a -> a)
-toParserBin [] y f = fail "couldn't create binary parser"
-toParserBin (x :: xs) y f = let p = x y f in
-                                p <|> toParserBin xs y f
+toParserBin : BinaryOperator a -> Parser (a -> a -> a)
+toParserBin [] = fail "couldn't create binary parser"
+toParserBin (x :: xs) = x <|>| toParserBin xs
 
-toParserUn : UnaryOperator a -> Parser () -> (a -> a) -> Parser (a -> a)
-toParserUn [] y f = fail "couldn't create unary parser"
-toParserUn (x :: xs) y f = let p = x y f in
-                               p <|> toParserUn xs y f
+toParserUn : UnaryOperator a -> Parser (a -> a)
+toParserUn [] = fail "couldn't create unary parser"
+toParserUn (x :: xs) = x <|>| toParserUn xs
 
 buildExpressionParser : (a : Type) -> OperatorTable a -> Parser a -> Parser a
 buildExpressionParser a operators simpleExpr =
@@ -60,9 +57,9 @@ buildExpressionParser a operators simpleExpr =
           prefixxOp = toParserUn prefixx
           postfixOp = toParserUn postfix
 
-          termP = do -- pre <- prefixxOp
+          termP = do pre <- prefixxOp
                      x <- term
-                     -- post <- postfixOP
-                     pure (x)
+                     post <- postfixOp
+                     pure (post (pre x))
                in
           ?baz
