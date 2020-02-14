@@ -115,3 +115,18 @@ buildExpressionParser a operators simpleExpr =
           in
           do x <- termP
              rassocP x <|> lassocP  x <|> nassocP x <|> pure x <?> "operator"
+
+mutual
+  table : OperatorTable Integer
+  table = [[Infix (do token "+"; pure (+) ) AssocLeft]]
+
+  intConst : Parser Integer
+  intConst = do i <- integer
+                pure (i)
+
+  term : Parser Integer
+  term = parens expr <|> intConst
+         <?> "simple expression"
+
+  expr : Parser Integer
+  expr = buildExpressionParser Integer table term
