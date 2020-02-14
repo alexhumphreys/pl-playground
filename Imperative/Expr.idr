@@ -40,35 +40,35 @@ ambigious : (assoc : String) -> (op : Parser (a -> a -> a)) -> Parser a
 ambigious assoc op = do op
                         fail ("ambiguous use of a " ++ assoc ++ " associative operator")
 
-record Ambiguous where
-    constructor MkAmbiguous
-    ambigiousRight, ambigiousLeft, ambigiousNon : Parser a
+mutual
+  mkRassocP : (amLeft : Parser a) -> (amNon : Parser a) -> (rassocOp : Parser (a -> a -> a)) -> (termP : Parser a) -> (x : a) -> Parser a
+  mkRassocP amLeft amNon rassocOp termP x =
+   (do f <- rassocOp
+       y <- do z <- termP ; mkRassocP1 amLeft amNon rassocOp termP z
+       pure (f x y))
+   <|> (amLeft)
+   <|> (amNon)
+
+  mkRassocP1 : (amLeft : Parser a) -> (amNon : Parser a) -> (rassocOp : Parser (a -> a -> a)) -> (termP : Parser a) -> (x : a) -> Parser a
+  mkRassocP1 amLeft amNon rassocOp termP x = (mkRassocP amLeft amNon rassocOp termP x) <|> pure x
 
 mutual
-  mkRassocP : (ambig : Ambiguous) -> (rassocOp : Parser (a -> a -> a)) -> (termP : Parser a) -> (x : a) -> Parser a
-  mkRassocP ambig rassocOp termP x =
-    do f <- rassocOp
-       y <- do z <- termP ; mkRassocP1 ambig rassocOp termP z
-       pure (f x y)
+  mkLassocP : (amRight : Parser a) -> (amNon : Parser a) -> (lassocOp : Parser (a -> a -> a)) -> (termP : Parser a) -> (x : a) -> Parser a
+  mkLassocP amRight amNon lassocOp termP x =
+    (do f <- lassocOp
+        y <- termP
+        mkLassocP1 amRight amNon lassocOp termP (f x y))
+    <|> amRight
+    <|> amNon
 
-  mkRassocP1 : (ambig : Ambiguous) -> (rassocOp : Parser (a -> a -> a)) -> (termP : Parser a) -> (x : a) -> Parser a
-  mkRassocP1 ambig rassocOp termP x = (mkRassocP ambig rassocOp termP x) <|> pure x
+  mkLassocP1 : (amRight : Parser a) -> (amNon : Parser a) -> (lassocOp : Parser (a -> a -> a)) -> (termP : Parser a) -> (x : a) -> Parser a
+  mkLassocP1 amRight amNon lassocOp termP x = mkLassocP amRight amNon lassocOp termP x <|> pure x
 
-mutual
-
-  mkLassocP : (ambig : Ambiguous) -> (lassocOp : Parser (a -> a -> a)) -> (termP : Parser a) -> (x : a) -> Parser a
-  mkLassocP ambig lassocOp termP x =
-    do f <- lassocOp
-       y <- termP
-       mkLassocP1 ambig lassocOp termP (f x y)
-
-  mkLassocP1 : (ambig : Ambiguous) -> (lassocOp : Parser (a -> a -> a)) -> (termP : Parser a) -> (x : a) -> Parser a
-  mkLassocP1 ambig lassocOp termP x = mkLassocP ambig lassocOp termP x <|> pure x
-
-mkNassocP : (ambig : Ambiguous) -> (nassocOp : Parser (a -> a -> a)) -> (termP : Parser a) -> (x : a) -> Parser a
-mkNassocP ambig nassocOp termP x =
+mkNassocP : (amRight : Parser a) -> (amLeft : Parser a) -> (amNon : Parser a) -> (nassocOp : Parser (a -> a -> a)) -> (termP : Parser a) -> (x : a) -> Parser a
+mkNassocP amRight amLeft amNon nassocOp termP x =
   do f <- nassocOp
      y <- termP
+     amRight <|> amLeft <|> amNon
      pure (f x y)
 
 buildExpressionParser : (a : Type) -> OperatorTable a -> Parser a -> Parser a
@@ -92,7 +92,9 @@ buildExpressionParser a operators simpleExpr =
           prefixxOp = toParserUn prefixx
           postfixOp = toParserUn postfix
 
-          ambig = MkAmbiguous (ambigious "right" rassocOp) (ambigious "left" lassocOp) (ambigious "non" nassocOp)
+          amRight = ambigious "right" rassocOp
+          amLeft = ambigious "left" lassocOp
+          amNon = ambigious "non" nassocOp
 
           prefixxP = prefixxOp <|> pure id
 
@@ -103,13 +105,13 @@ buildExpressionParser a operators simpleExpr =
                      post <- postfixP
                      pure (post (pre x))
 
-          rassocP = mkRassocP ambig rassocOp termP
-          rassocP1 = mkRassocP1 ambig rassocOp termP
+          rassocP = mkRassocP amLeft amNon rassocOp termP
+          rassocP1 = mkRassocP1 amLeft amNon rassocOp termP
 
-          lassocP = mkLassocP ambig lassocOp termP
-          lassocP1 = mkLassocP1 ambig lassocOp termP
+          lassocP = mkLassocP amRight amNon lassocOp termP
+          lassocP1 = mkLassocP1 amRight amNon lassocOp termP
 
-          nassocP = mkNassocP ambig nassocOp termP
+          nassocP = mkNassocP amRight amLeft amNon nassocOp termP
 
           test = do z <- termP
                     ?bar
