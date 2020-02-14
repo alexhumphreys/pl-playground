@@ -37,33 +37,15 @@ toParserUn [] = fail "couldn't create unary parser"
 toParserUn (x :: xs) = x <|>| toParserUn xs
 
 mutual
-  rassocP : (rassocOp : Parser (a -> a -> a)) -> (termP : Parser a) -> (x : a) -> Parser a
-  rassocP rassocOp termP x =
+  mkRassocP : (rassocOp : Parser (a -> a -> a)) -> (termP : Parser a) -> (x : a) -> Parser a
+  mkRassocP rassocOp termP x =
     do f <- rassocOp
-       y <- do z <- termP ; rassocP1 rassocOp termP z
+       y <- do z <- termP ; mkRassocP1 rassocOp termP z
        pure (f x y)
 
-  rassocP1 : (rassocOp : Parser (a -> a -> a)) -> (termP : Parser a) -> (x : a) -> Parser a
-  rassocP1 rassocOp termP x = (rassocP rassocOp termP x) <|> pure x
+  mkRassocP1 : (rassocOp : Parser (a -> a -> a)) -> (termP : Parser a) -> (x : a) -> Parser a
+  mkRassocP1 rassocOp termP x = (mkRassocP rassocOp termP x) <|> pure x
 
-{-
-rassocP x  = do{ f <- rassocOp
-               ; y  <- do{ z <- termP; rassocP1 z }
-               ; return (f x y)
-               }
-             <|> ambigiousLeft
-             <|> ambigiousNon
-             -- <|> return x
-
-rassocP1 x = rassocP x  <|> return x
-
--}
--- termP : Parser a
--- z : a
--- rassocOp : ParserT String Identity (a -> a -> a)
--- x in rassocP1; x : a
--- rassocP x : a -> Parser a
--- rassocP1 x : a -> Parser a
 buildExpressionParser : (a : Type) -> OperatorTable a -> Parser a -> Parser a
 buildExpressionParser a operators simpleExpr =
   foldl (makeParser a) simpleExpr operators
@@ -85,10 +67,18 @@ buildExpressionParser a operators simpleExpr =
           prefixxOp = toParserUn prefixx
           postfixOp = toParserUn postfix
 
-          termP = do pre <- prefixxOp
+          prefixxP = prefixxOp <|> pure id
+
+          postfixP = postfixOp <|> pure id
+
+          termP = do pre <- prefixxP
                      x <- term
-                     post <- postfixOp
+                     post <- postfixP
                      pure (post (pre x))
+
+          rassocP = mkRassocP rassocOp termP
+          rassocP1 = mkRassocP1 rassocOp termP
+
           test = do z <- termP
                     ?bar
                in
