@@ -46,6 +46,22 @@ mutual
   mkRassocP1 : (rassocOp : Parser (a -> a -> a)) -> (termP : Parser a) -> (x : a) -> Parser a
   mkRassocP1 rassocOp termP x = (mkRassocP rassocOp termP x) <|> pure x
 
+mutual
+
+  mkLassocP : (lassocOp : Parser (a -> a -> a)) -> (termP : Parser a) -> (x : a) -> Parser a
+  mkLassocP lassocOp termP x = do f <- lassocOp
+                                  y <- termP
+                                  mkLassocP1 lassocOp termP (f x y)
+
+  mkLassocP1 : (lassocOp : Parser (a -> a -> a)) -> (termP : Parser a) -> (x : a) -> Parser a
+  mkLassocP1 lassocOp termP x = mkLassocP lassocOp termP x <|> pure x
+
+{-
+          nassocP x  = do f <- nassocOp
+                          y <- termP
+                          pure (f x y)
+-}
+
 buildExpressionParser : (a : Type) -> OperatorTable a -> Parser a -> Parser a
 buildExpressionParser a operators simpleExpr =
   foldl (makeParser a) simpleExpr operators
@@ -78,6 +94,9 @@ buildExpressionParser a operators simpleExpr =
 
           rassocP = mkRassocP rassocOp termP
           rassocP1 = mkRassocP1 rassocOp termP
+
+          lassocP = mkLassocP lassocOp termP
+          lassocP1 = mkLassocP1 lassocOp termP
 
           test = do z <- termP
                     ?bar
