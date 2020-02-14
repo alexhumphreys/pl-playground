@@ -36,6 +36,41 @@ toParserUn : UnaryOperator a -> Parser (a -> a)
 toParserUn [] = fail "couldn't create unary parser"
 toParserUn (x :: xs) = x <|>| toParserUn xs
 
+ambigious : (assoc : String) -> (op : Parser (a -> a -> a)) -> Parser a
+ambigious assoc op = do op
+                        fail ("ambiguous use of a " ++ assoc ++ " associative operator")
+
+mutual
+  mkRassocP : (amLeft : Parser a) -> (amNon : Parser a) -> (rassocOp : Parser (a -> a -> a)) -> (termP : Parser a) -> (x : a) -> Parser a
+  mkRassocP amLeft amNon rassocOp termP x =
+   (do f <- rassocOp
+       y <- do z <- termP ; mkRassocP1 amLeft amNon rassocOp termP z
+       pure (f x y))
+   <|> (amLeft)
+   <|> (amNon)
+
+  mkRassocP1 : (amLeft : Parser a) -> (amNon : Parser a) -> (rassocOp : Parser (a -> a -> a)) -> (termP : Parser a) -> (x : a) -> Parser a
+  mkRassocP1 amLeft amNon rassocOp termP x = (mkRassocP amLeft amNon rassocOp termP x) <|> pure x
+
+mutual
+  mkLassocP : (amRight : Parser a) -> (amNon : Parser a) -> (lassocOp : Parser (a -> a -> a)) -> (termP : Parser a) -> (x : a) -> Parser a
+  mkLassocP amRight amNon lassocOp termP x =
+    (do f <- lassocOp
+        y <- termP
+        mkLassocP1 amRight amNon lassocOp termP (f x y))
+    <|> amRight
+    <|> amNon
+
+  mkLassocP1 : (amRight : Parser a) -> (amNon : Parser a) -> (lassocOp : Parser (a -> a -> a)) -> (termP : Parser a) -> (x : a) -> Parser a
+  mkLassocP1 amRight amNon lassocOp termP x = mkLassocP amRight amNon lassocOp termP x <|> pure x
+
+mkNassocP : (amRight : Parser a) -> (amLeft : Parser a) -> (amNon : Parser a) -> (nassocOp : Parser (a -> a -> a)) -> (termP : Parser a) -> (x : a) -> Parser a
+mkNassocP amRight amLeft amNon nassocOp termP x =
+  do f <- nassocOp
+     y <- termP
+     amRight <|> amLeft <|> amNon
+     pure (f x y)
+
 buildExpressionParser : (a : Type) -> OperatorTable a -> Parser a -> Parser a
 buildExpressionParser a operators simpleExpr =
   foldl (makeParser a) simpleExpr operators
@@ -57,9 +92,41 @@ buildExpressionParser a operators simpleExpr =
           prefixxOp = toParserUn prefixx
           postfixOp = toParserUn postfix
 
-          termP = do pre <- prefixxOp
+          amRight = ambigious "right" rassocOp
+          amLeft = ambigious "left" lassocOp
+          amNon = ambigious "non" nassocOp
+
+          prefixxP = prefixxOp <|> pure id
+
+          postfixP = postfixOp <|> pure id
+
+          termP = do pre <- prefixxP
                      x <- term
-                     post <- postfixOp
+                     post <- postfixP
                      pure (post (pre x))
-               in
-          ?baz
+
+          rassocP = mkRassocP amLeft amNon rassocOp termP
+          rassocP1 = mkRassocP1 amLeft amNon rassocOp termP
+
+          lassocP = mkLassocP amRight amNon lassocOp termP
+          lassocP1 = mkLassocP1 amRight amNon lassocOp termP
+
+          nassocP = mkNassocP amRight amLeft amNon nassocOp termP
+          in
+          do x <- termP
+             rassocP x <|> lassocP  x <|> nassocP x <|> pure x <?> "operator"
+
+mutual
+  table : OperatorTable Integer
+  table = [[Infix (do token "+"; pure (+) ) AssocLeft]]
+
+  intConst : Parser Integer
+  intConst = do i <- integer
+                pure (i)
+
+  term : Parser Integer
+  term = parens expr <|> intConst
+         <?> "simple expression"
+
+  expr : Parser Integer
+  expr = buildExpressionParser Integer table term
