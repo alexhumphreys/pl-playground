@@ -118,7 +118,9 @@ buildExpressionParser a operators simpleExpr =
 
 mutual
   table : OperatorTable Integer
-  table = [[Infix (do token "+"; pure (+) ) AssocLeft]]
+  table =
+    [ [Infix (do token "*"; pure (*) ) AssocLeft]
+    , [Infix (do token "+"; pure (+) ) AssocLeft]]
 
   intConst : Parser Integer
   intConst = do i <- integer
