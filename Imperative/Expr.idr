@@ -30,11 +30,11 @@ ReturnType a = (BinaryOperator a, BinaryOperator a, BinaryOperator a, UnaryOpera
 
 toParserBin : BinaryOperator a -> Parser (a -> a -> a)
 toParserBin [] = fail "couldn't create binary parser"
-toParserBin (x :: xs) = x <|>| toParserBin xs
+toParserBin (x :: xs) = x <|> toParserBin xs
 
 toParserUn : UnaryOperator a -> Parser (a -> a)
 toParserUn [] = fail "couldn't create unary parser"
-toParserUn (x :: xs) = x <|>| toParserUn xs
+toParserUn (x :: xs) = x <|> toParserUn xs
 
 ambigious : (assoc : String) -> (op : Parser (a -> a -> a)) -> Parser a
 ambigious assoc op = do op
@@ -125,7 +125,7 @@ mutual
                 pure (i)
 
   term : Parser Integer
-  term = parens expr <|> intConst
+  term = intConst <|>| parens expr
          <?> "simple expression"
 
   expr : Parser Integer
