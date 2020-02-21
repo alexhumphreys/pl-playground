@@ -85,3 +85,53 @@ mutual
     _ <- token ")"
     pure expr
 
+-- statements
+
+-- If there's only one statement return it without using Seq.
+statementFromList : List Stmt -> Stmt
+statementFromList (x :: []) = x
+statementFromList xs = Seq xs
+
+mutual
+  statement' : Parser Stmt
+  statement' =
+    ifStmt
+    <|> whileStmt
+    <|> skipStmt
+    <|> assignStmt
+
+  sequenceOfStmt : Parser Stmt
+  sequenceOfStmt =
+    do list <- (sepBy1 statement' (token ";"))
+       pure (statementFromList list)
+
+  statement : Parser Stmt
+  statement = sequenceOfStmt <|>| parens statement
+
+  ifStmt : Parser Stmt
+  ifStmt = do
+    rIf
+    cond  <- bExpression
+    rThen
+    stmt1 <- statement
+    rElse
+    stmt2 <- statement
+    pure (If cond stmt1 stmt2)
+
+  whileStmt : Parser Stmt
+  whileStmt = do
+    rWhile
+    cond <- bExpression
+    rDo
+    stmt <- statement
+    pure (While cond stmt)
+
+  assignStmt : Parser Stmt
+  assignStmt =
+    do var  <- identifier
+       rAssign
+       expr <- aExpression
+       pure (Assign var expr)
+
+  skipStmt : Parser Stmt
+  skipStmt = do rSkip ; pure Skip

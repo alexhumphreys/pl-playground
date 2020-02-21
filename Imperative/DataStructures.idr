@@ -42,13 +42,13 @@ Show BExpr where
   show (RBinary o l r) = "(RBINARY (" ++ (show o) ++ " " ++ (show l) ++ (show r) ++ "))"
 
 data Stmt = Seq (List Stmt)
-          | Assign String AExpr
+          | Assign AExpr AExpr
           | If BExpr Stmt Stmt
           | While BExpr Stmt
           | Skip
 Show Stmt where
   show (Seq x) = concatMap (\s => show s ++ "\n") x ++ ")"
-  show (Assign s a) = "(ASSIGN " ++  s ++ (show a) ++ ")"
+  show (Assign s a) = "(ASSIGN " ++ (show s) ++ (show a) ++ ")"
   show (If b t f) = "(IF " ++ (show b) ++ (show t) ++ (show f) ++ ")"
   show (While b s) = "(While " ++ (show b) ++ (show s) ++ ")"
   show Skip = "(SKIP" ++ ")"
