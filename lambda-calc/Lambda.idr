@@ -108,3 +108,9 @@ nf : Env -> Tm -> Tm
 nf env = let qe = quote env
              ee = eval env in
              qe . ee
+
+test : Maybe Tm
+test = let parsed = (Lightyear.Strings.parse (pTm) "let five = \\s z. s (s (s (s (s z)))) in let add = \\a b s z. a s (b s z) in let mul = \\a b s z. a (b s) z in let ten = add five five in let hundred = mul ten ten in let thousand = mul ten hundred in let tenthousand = mul ten thousand in tenthousand") in
+           (case parsed of
+                 (Left l) => Nothing
+                 (Right r) => Just (nf [] r))
