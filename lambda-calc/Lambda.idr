@@ -65,3 +65,31 @@ mutual
 
   pSpine : Parser Tm
   pSpine = foldl1 App <$> some pAtom
+
+-- evaluation
+
+data Val
+  = VVar Name
+  | VApp Val Val
+  | VLam Name (Val -> Val)
+
+Env : Type
+Env = List (Name, Maybe Val)
+
+fresh : Env -> Name -> Name
+fresh env "_" = "_"
+fresh env x = case lookup x env of
+                   Nothing => x
+                   (Just _) => fresh env (x ++ "'")
+
+eval : Env -> Tm -> Val
+eval env (Var x) = let findX = lookup x env in
+                       (case findX of
+                             Nothing => VVar x
+                             (Just x') => (case x' of
+                                                Nothing => VVar x
+                                                (Just x'') => x''))
+eval env (App t u) = ?eval_rhs_3
+eval env (Lam x t) = VLam x (\u => eval [(x, Just u)] t)
+eval env (Let x t u) = let nextEnv = Just (eval env t) in
+                           eval [(x, nextEnv)] u
