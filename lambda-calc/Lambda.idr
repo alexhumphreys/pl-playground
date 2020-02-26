@@ -89,7 +89,22 @@ eval env (Var x) = let findX = lookup x env in
                              (Just x') => (case x' of
                                                 Nothing => VVar x
                                                 (Just x'') => x''))
-eval env (App t u) = ?eval_rhs_3
-eval env (Lam x t) = VLam x (\u => eval [(x, Just u)] t)
+eval env (App t u) = let evalT = eval env t
+                         evalU = eval env u
+                         in
+                         (case evalT of
+                               (VLam _ f) => f evalU
+                               _ => VApp evalT evalU)
+eval env (Lam x t) = VLam x (\u => eval ((x, Just u)::env) t)
 eval env (Let x t u) = let nextEnv = Just (eval env t) in
-                           eval [(x, nextEnv)] u
+                           eval ((x, nextEnv)::env) u
+
+quote : Env -> Val -> Tm
+quote env (VVar x) = Var x
+quote env (VApp t u) = App (quote env t) (quote env u)
+quote env (VLam x t) = let freshX = fresh env x in
+                           Lam freshX (quote ((x, Nothing)::env) (t (VVar x)))
+nf : Env -> Tm -> Tm
+nf env = let qe = quote env
+             ee = eval env in
+             qe . ee
