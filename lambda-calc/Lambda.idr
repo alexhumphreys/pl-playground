@@ -114,3 +114,9 @@ test = let parsed = (Lightyear.Strings.parse (pTm) "let five = \\s z. s (s (s (s
            (case parsed of
                  (Left l) => Nothing
                  (Right r) => Just (nf [] r))
+
+test2 : Maybe Tm
+test2 = let parsed = (Lightyear.Strings.parse (pTm) "let true = (\\x y. x) in let false = (\\x y. y) in let and = (\\x y. (x (y true false) false)) in let or = (\\x y. (x true (y true false))) in or false true") in
+           (case parsed of
+                 (Left l) => Nothing
+                 (Right r) => Just (nf [] r))
