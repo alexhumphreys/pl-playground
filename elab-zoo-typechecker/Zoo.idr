@@ -7,8 +7,8 @@ mutual
   Ty : Type
   Ty = Tm
 
-  Raw : Type
-  Raw = Tm
+  RRaw : Type
+  RRaw = Tm
 
   data Tm
     = Var Name
@@ -75,4 +75,49 @@ partial
 nf0 : Tm -> Tm
 nf0 = nf []
 
+partial
 conv : Env -> Val -> Val -> Bool
+conv env t u =
+  case (t, u) of
+       (VU, VU) => True
+       (VPi x a b, VPi x' a' b') =>
+         let gx = fresh env x in
+         conv env a a' && conv ((gx, Nothing) :: env) (b (VVar gx)) (b' (VVar gx))
+       (VLam x t, VLam x' t') =>
+         let gx = fresh env x in
+         conv ((gx, Nothing) :: env) (t (VVar gx)) (t' (VVar gx))
+
+       -- checking eta conversion for Lam
+       (VLam x t, u) =>
+         let gx = fresh env x in
+         conv ((gx, Nothing) :: env) (t (VVar gx)) (VApp u (VVar gx))
+       (u, VLam x t) =>
+         let gx = fresh env x in
+         conv ((gx, Nothing) :: env) (VApp u (VVar gx)) (t (VVar gx))
+
+       (VVar x, VVar x') => x == x'
+       (VApp t u, VApp t' u') => conv env t t' && conv env u u'
+       _ => False
+
+VTy : Type
+VTy = Val
+
+Cxt : Type
+Cxt = List (Name, VTy)
+
+M : Type -> Type
+M = Either (String, Maybe SourcePos)
+
+report : String -> M a
+report str = Left (str, Nothing)
+
+quoteShow : Env -> Val -> String
+
+addPos : SourcePos -> M a -> M a
+addPos pos ma = case ma of
+  Left (msg, Nothing) => Left (msg, Just pos)
+  x => x
+
+check : Env -> Cxt -> RRaw -> VTy -> M ()
+
+infer : Env -> Cxt -> RRaw -> M VTy
