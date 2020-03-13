@@ -1,3 +1,5 @@
+module Zoo
+
 data SourcePos = SP String Nat Nat
 
 Name : Type
@@ -118,6 +120,46 @@ addPos pos ma = case ma of
   Left (msg, Nothing) => Left (msg, Just pos)
   x => x
 
-check : Env -> Cxt -> RRaw -> VTy -> M ()
+mutual
+  partial
+  infer : Env -> Cxt -> RRaw -> M VTy
+  infer env cxt (Var x) =
+    case lookup x cxt of
+         Nothing => report $ "Name not in scope: " ++ x
+         Just a  => Right a
+  infer env cxt (Lam _ _) = report "Can't infer type for lambda expresion"
+  infer env cxt (App t u) =
+    do tty <- infer env cxt t
+       ?infer_rhs_3
+  infer env cxt U = Right VU
+  infer env cxt (Pi x a b) =
+    do Zoo.check env cxt a VU
+       check ((x, Nothing) :: env) ((x, eval env a) :: cxt) b VU
+       Right VU
+  infer env cxt (Let x a t u) =
+    let a' = eval env a in -- TODO not sure about
+    do check env cxt a VU
+       check env cxt t a'
+       infer ((x, Just (eval env t)) :: env) ((x, a') :: cxt) u
+  infer env cxt (SrcPos pos t) = addPos pos (infer env cxt t)
 
-infer : Env -> Cxt -> RRaw -> M VTy
+  partial
+  check : Env -> Cxt -> RRaw -> VTy -> M ()
+  check env cxt t a =
+    case (t, a) of
+         (SrcPos pos t', _) => addPos pos (check env cxt t' a)
+         (Lam x t, VPi x' a b) =>
+           let freshX' = fresh env x' in
+           check ((x, Just (VVar freshX')) :: env) ((x, a) :: cxt) t (b (VVar x'))
+         (Let x a' t' u, _) => -- TODO not sure about this one
+           let a'' = eval env a' in
+           do
+             check env cxt a' VU
+             check env cxt t' a''
+             check ((x, Just (eval env t')) :: env) ((x, a'') :: cxt) u a
+         _ => do
+           tty <- infer env cxt t
+           when (not (conv env tty a)) $
+             -- (quoteShow env a) (quoteShow env tty))
+             report ("type mismatch\n\nexpected type:\n\n  " ++ "" ++ "\n\ninferred type:\n\n " ++ "" ++ "\n")
+
