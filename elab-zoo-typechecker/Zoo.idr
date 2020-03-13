@@ -130,7 +130,13 @@ mutual
   infer env cxt (Lam _ _) = report "Can't infer type for lambda expresion"
   infer env cxt (App t u) =
     do tty <- infer env cxt t
-       ?infer_rhs_3
+       (case tty of
+             (VPi _ a b) =>
+               do check env cxt u a
+                  Right (b (eval env u))
+             _ => report $
+                    "Expected a function type, instead inferred:\n\n  "
+                    ++ quoteShow env tty)
   infer env cxt U = Right VU
   infer env cxt (Pi x a b) =
     do Zoo.check env cxt a VU
