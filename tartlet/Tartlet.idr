@@ -1,3 +1,5 @@
+-- expressions
+
 data Name = Name' String
 
 Show Name where
@@ -38,6 +40,7 @@ Namespace : Type
 Namespace = List (Name, Integer)
 %name Namespace ns1, ns2, ns3
 
+-- alpha equivalence
 aEquiv : Expr -> Expr -> Bool
 
 aEquivHelper : (i : Integer) ->
@@ -116,3 +119,56 @@ aEquivHelper i ns1 (The t1 e1) ns2 (The t2 e2) =
   aEquivHelper i ns1 e1 ns2 e2
 
 aEquivHelper _ _ _ _ _ = False
+
+mutual
+  data Neutral
+    = NVar Name
+    | NApp Neutral Neutral
+    | NCar Neutral
+    | NCdr Neutral
+    | NIndNat Neutral Normal Normal Normal
+    | NReplace Neutral Normal Normal
+    | NIndAbsurd Neutral Normal
+
+  data Normal = Normal' Ty Value
+
+  Env : Type -- Now a type alias
+  Env = List (Name,Value)
+  %name Env env, env1, env2
+
+  record Closure where
+    constructor MkClosure
+    closureEnv : Env
+    closureName : Name
+    closureBody : Expr
+
+  Ty : Type
+  Ty = Value
+
+  -- Values
+  data Value
+    = VPi Ty Closure
+    | VLambda Closure
+    | VSimga Ty Closure
+    | VPair Value Value
+    | VNat
+    | VZero
+    | VAdd1 Value
+    | VEq Ty Value Value
+    | VSame
+    | VTrivial
+    | VSole
+    | VAbsurd
+    | VAtom
+    | VTick String
+    | VU
+    | VNeutral Ty Neutral
+
+extendEnv : Env -> Name -> Value -> Env
+extendEnv env x v = ((x, v) :: env)
+
+evalVar : Env -> Name -> Maybe Value
+evalVar [] x = Nothing
+evalVar ((y, v) :: env) x = case x == y of
+                                  True => Just v
+                                  False => evalVar env x
