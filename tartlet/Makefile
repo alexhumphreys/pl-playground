@@ -1,0 +1,2 @@
+repl:
+	idris Tartlet.idr
