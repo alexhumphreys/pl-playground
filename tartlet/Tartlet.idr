@@ -80,16 +80,39 @@ aEquivHelper _ _ Zero _ Zero = True
 aEquivHelper i ns1 (Add1 e1) ns2 (Add1 e2) =
   aEquivHelper i ns1 e1 ns2 e2
 
-aEquivHelper i ns1 (IndNat x z w s) ns2 y = ?aEquivHelper_rhs_12
-aEquivHelper i ns1 (Equal x z w) ns2 y = ?aEquivHelper_rhs_13
-aEquivHelper i ns1 Same ns2 y = ?aEquivHelper_rhs_14
-aEquivHelper i ns1 (Replace x z w) ns2 y = ?aEquivHelper_rhs_15
-aEquivHelper i ns1 Trivial ns2 y = ?aEquivHelper_rhs_16
-aEquivHelper i ns1 Sole ns2 y = ?aEquivHelper_rhs_17
-aEquivHelper i ns1 Absurd ns2 y = ?aEquivHelper_rhs_18
-aEquivHelper i ns1 (IndAbsurd x z) ns2 y = ?aEquivHelper_rhs_19
-aEquivHelper i ns1 Atom ns2 y = ?aEquivHelper_rhs_20
-aEquivHelper i ns1 (Tick x) ns2 y = ?aEquivHelper_rhs_21
-aEquivHelper i ns1 U ns2 y = ?aEquivHelper_rhs_22
-aEquivHelper i ns1 (The x z) ns2 y = ?aEquivHelper_rhs_23
+aEquivHelper i ns1 (IndNat tgt1 mot1 base1 step1) ns2 (IndNat tgt2 mot2 base2 step2) =
+  aEquivHelper i ns1 tgt1 ns2 tgt2 &&
+  aEquivHelper i ns1 mot1 ns2 mot2 &&
+  aEquivHelper i ns1 base1 ns2 base2 &&
+  aEquivHelper i ns1 step1 ns2 step2
+
+aEquivHelper i ns1 (Equal ty1 from1 to1) ns2 (Equal ty2 from2 to2) =
+  aEquivHelper i ns1 ty1 ns2 ty2 &&
+  aEquivHelper i ns1 from1 ns2 from2 &&
+  aEquivHelper i ns1 to1 ns2 to2
+
+aEquivHelper _ _ Same _ Same = True
+
+aEquivHelper i ns1 (Replace tgt1 mot1 base1) ns2 (Replace tgt2 mot2 base2) =
+  aEquivHelper i ns1 tgt1 ns2 tgt2 &&
+  aEquivHelper i ns1 mot1 ns2 mot2 &&
+  aEquivHelper i ns1 base1 ns2 base2
+
+aEquivHelper _ _ Trivial _ Trivial = True
+aEquivHelper _ _ Sole _ Sole = True
+aEquivHelper _ _ Absurd _ Absurd = True
+aEquivHelper _ _ Atom _ Atom = True
+aEquivHelper _ _ U _ Atom = True
+
+aEquivHelper i ns1 (IndAbsurd tgt1 mot1) ns2 (IndAbsurd tgt2 mot2) =
+  aEquivHelper i ns1 tgt1 ns2 tgt2 &&
+  aEquivHelper i ns1 mot1 ns2 mot2
+
+aEquivHelper i ns1 (Tick a1) ns2 (Tick a2) = a1 == a2
+
+aEquivHelper _ _ (The Absurd _) _ (The Absurd _) = True
+aEquivHelper i ns1 (The t1 e1) ns2 (The t2 e2) =
+  aEquivHelper i ns1 t1 ns2 t2 &&
+  aEquivHelper i ns1 e1 ns2 e2
+
 aEquivHelper _ _ _ _ _ = False
