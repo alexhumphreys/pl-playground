@@ -1,6 +1,8 @@
 module Zoo
 
 data SourcePos = SP String Nat Nat
+Show SourcePos where
+  show (SP x k j) = x ++ ":" ++ (show k) ++ "," ++ (show j)
 
 Name : Type
 Name = String
@@ -169,3 +171,13 @@ mutual
              -- (quoteShow env a) (quoteShow env tty))
              report ("type mismatch\n\nexpected type:\n\n  " ++ "" ++ "\n\ninferred type:\n\n " ++ "" ++ "\n")
 
+-- printing
+
+Show Tm where
+  show (Var x) = x
+  show (Lam x t) = "\\" ++ x ++ "." ++ (show t)
+  show (App t u) = (show t) ++ (show u)
+  show U = "U:"
+  show (Pi x t u) = "(" ++ x ++ ":" ++ (show t) ++ "->" ++ (show u)
+  show (Let x t u y) = "let " ++ x ++ " : " ++ (show t) ++ " = " ++ (show u) ++ " in " ++ (show y)
+  show (SrcPos _ t) = show t
