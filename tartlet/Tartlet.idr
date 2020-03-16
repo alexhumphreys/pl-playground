@@ -210,3 +210,42 @@ mkEnv ((x, e) :: ctx) =
         (IsA t) => let v = VNeutral t (NVar x) in
                        (x, v) :: env)
 
+-- eliminators
+doCar : Value -> Value
+doCdr : Value -> Value
+doApply : Value -> Value -> Value
+doIndAbsurd : Value -> Value -> Value
+doReplace : Value -> Value -> Value -> Value
+doIndNatStepType : Value -> Value
+doIndNat : Value -> Value -> Value -> Value -> Value
+
+-- evaluator
+mutual
+  evalClosure : Closure -> Value -> Value
+  evalClosure (MkClosure env x e) v =
+    eval (extendEnv env x v) e
+
+  eval : Env -> Expr -> Value
+  eval env (Var x) = ?eval_rhs_1
+  eval env (Pi x y z) = ?eval_rhs_2
+  eval env (Lambda x y) = ?eval_rhs_3
+  eval env (App x y) = ?eval_rhs_4
+  eval env (Sigma x y z) = ?eval_rhs_5
+  eval env (Cons x y) = ?eval_rhs_6
+  eval env (Car x) = ?eval_rhs_7
+  eval env (Cdr x) = ?eval_rhs_8
+  eval env Nat = ?eval_rhs_9
+  eval env Zero = ?eval_rhs_10
+  eval env (Add1 x) = ?eval_rhs_11
+  eval env (IndNat x y z w) = ?eval_rhs_12
+  eval env (Equal x y z) = ?eval_rhs_13
+  eval env Same = ?eval_rhs_14
+  eval env (Replace x y z) = ?eval_rhs_15
+  eval env Trivial = ?eval_rhs_16
+  eval env Sole = ?eval_rhs_17
+  eval env Absurd = ?eval_rhs_18
+  eval env (IndAbsurd x y) = ?eval_rhs_19
+  eval env Atom = ?eval_rhs_20
+  eval env (Tick x) = ?eval_rhs_21
+  eval env U = ?eval_rhs_22
+  eval env (The x y) = ?eval_rhs_23
