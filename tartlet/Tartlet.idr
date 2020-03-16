@@ -172,3 +172,41 @@ evalVar [] x = Nothing
 evalVar ((y, v) :: env) x = case x == y of
                                   True => Just v
                                   False => evalVar env x
+
+-- definitions and dependent types
+data CtxEntry = Def Ty Value | IsA Ty
+
+Ctx : Type
+Ctx = List (Name, CtxEntry)
+%name Ctx ctx, ctx1, ctx2
+
+initCtx : Ctx
+initCtx = []
+
+ctxNames : Ctx -> List Name
+ctxNames ctx = map fst ctx
+
+extendCtx : Ctx -> Name -> Ty -> Ctx
+extendCtx ctx x t = (x, (IsA t)) :: ctx
+
+define : Ctx -> Name -> Ty -> Value -> Ctx
+define ctx x t v = (x, Def t v) :: ctx
+
+lookupType : Ctx -> Name -> Either String Ty -- didn't use message type
+lookupType [] x = Left "unbound variable: " -- TODO ++ show x
+lookupType ((y, e) :: ctx) x =
+  (case x == y of
+        False => lookupType ctx x
+        True => (case e of
+                      (Def t _) => Right t
+                      (IsA t) => Right t))
+
+mkEnv : Ctx -> Env
+mkEnv [] = []
+mkEnv ((x, e) :: ctx) =
+  let env = mkEnv ctx in
+  (case e of
+        (Def _ v) => (x, v) :: env
+        (IsA t) => let v = VNeutral t (NVar x) in
+                       (x, v) :: env)
+
