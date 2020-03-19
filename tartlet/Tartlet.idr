@@ -1,5 +1,9 @@
 -- expressions
 
+data SourcePos = SP String Nat Nat
+Show SourcePos where
+  show (SP x k j) = x ++ ":" ++ (show k) ++ "," ++ (show j)
+
 data Name = Name' String
 
 Show Name where
@@ -32,6 +36,7 @@ data Expr
   | Tick String -- 'a
   | U -- U
   | The Expr Expr -- (the t e)
+  | SrcPos SourcePos Expr
 
 Show Expr where
 Eq Expr where
@@ -116,6 +121,9 @@ aEquivHelper i ns1 (Tick a1) ns2 (Tick a2) = a1 == a2
 aEquivHelper _ _ (The Absurd _) _ (The Absurd _) = True
 aEquivHelper i ns1 (The t1 e1) ns2 (The t2 e2) =
   aEquivHelper i ns1 t1 ns2 t2 &&
+  aEquivHelper i ns1 e1 ns2 e2
+
+aEquivHelper i ns1 (SrcPos str1 e1) ns2 (SrcPos str2 e2) =
   aEquivHelper i ns1 e1 ns2 e2
 
 aEquivHelper _ _ _ _ _ = False
@@ -227,25 +235,30 @@ mutual
 
   eval : Env -> Expr -> Value
   eval env (Var x) = ?eval_rhs_1
-  eval env (Pi x y z) = ?eval_rhs_2
-  eval env (Lambda x y) = ?eval_rhs_3
-  eval env (App x y) = ?eval_rhs_4
-  eval env (Sigma x y z) = ?eval_rhs_5
-  eval env (Cons x y) = ?eval_rhs_6
-  eval env (Car x) = ?eval_rhs_7
-  eval env (Cdr x) = ?eval_rhs_8
-  eval env Nat = ?eval_rhs_9
-  eval env Zero = ?eval_rhs_10
-  eval env (Add1 x) = ?eval_rhs_11
-  eval env (IndNat x y z w) = ?eval_rhs_12
-  eval env (Equal x y z) = ?eval_rhs_13
-  eval env Same = ?eval_rhs_14
-  eval env (Replace x y z) = ?eval_rhs_15
-  eval env Trivial = ?eval_rhs_16
-  eval env Sole = ?eval_rhs_17
-  eval env Absurd = ?eval_rhs_18
-  eval env (IndAbsurd x y) = ?eval_rhs_19
-  eval env Atom = ?eval_rhs_20
-  eval env (Tick x) = ?eval_rhs_21
-  eval env U = ?eval_rhs_22
-  eval env (The x y) = ?eval_rhs_23
+  eval env (Pi x dom ran) = VPi (eval env dom) (MkClosure env x ran)
+  eval env (Lambda x body) = VLambda (MkClosure env x body)
+  eval env (App rator rand) = doApply (eval env rator) (eval env rand)
+  eval env (Sigma x carType cdrType) = VSimga (eval env carType) (MkClosure env x cdrType)
+  eval env (Cons a d) = VPair (eval env a) (eval env d)
+  eval env (Car e) = doCar (eval env e)
+  eval env (Cdr e) = doCdr (eval env e)
+  eval env Nat = VNat
+  eval env Zero = VZero
+  eval env (Add1 e) = VAdd1 (eval env e)
+  eval env (IndNat tgt mot base step) =
+    doIndNat (eval env tgt) (eval env mot) (eval env base) (eval env step)
+  eval env (Equal ty from to) =
+    VEq (eval env ty) (eval env from) (eval env to)
+  eval env Same = VSame
+  eval env (Replace tgt mot base) =
+    doReplace (eval env tgt) (eval env mot) (eval env base)
+  eval env Trivial = VTrivial
+  eval env Sole = VSole
+  eval env Absurd = VAbsurd
+  eval env (IndAbsurd tgt mot) =
+    doIndAbsurd (eval env tgt) (eval env mot)
+  eval env Atom = VAtom
+  eval env (Tick x) = VTick x
+  eval env U = VU
+  eval env (The ty e) = eval env e
+  eval env (SrcPos _ e) = eval env e
