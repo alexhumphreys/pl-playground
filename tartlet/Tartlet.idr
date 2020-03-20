@@ -131,7 +131,7 @@ aEquivHelper _ _ _ _ _ = False
 mutual
   data Neutral
     = NVar Name
-    | NApp Neutral Neutral
+    | NApp Neutral Normal
     | NCar Neutral
     | NCdr Neutral
     | NIndNat Neutral Normal Normal Normal
@@ -218,21 +218,14 @@ mkEnv ((x, e) :: ctx) =
         (IsA t) => let v = VNeutral t (NVar x) in
                        (x, v) :: env)
 
--- eliminators
-doCar : Value -> Value
-doCdr : Value -> Value
-doApply : Value -> Value -> Value
-doIndAbsurd : Value -> Value -> Value
-doReplace : Value -> Value -> Value -> Value
-doIndNatStepType : Value -> Value
-doIndNat : Value -> Value -> Value -> Value -> Value
-
 -- evaluator
 mutual
+  partial
   evalClosure : Closure -> Value -> Value
   evalClosure (MkClosure env x e) v =
     eval (extendEnv env x v) e
 
+  partial
   eval : Env -> Expr -> Value
   eval env (Var x) = ?eval_rhs_1
   eval env (Pi x dom ran) = VPi (eval env dom) (MkClosure env x ran)
@@ -262,3 +255,60 @@ mutual
   eval env U = VU
   eval env (The ty e) = eval env e
   eval env (SrcPos _ e) = eval env e
+
+  -- eliminators
+  partial
+  doCar : Value -> Value
+  doCar (VPair v1 v2) = v1
+  doCar (VNeutral (VSimga aT dT) neu) =
+    VNeutral aT (NCar neu)
+
+  partial
+  doCdr : Value -> Value
+  doCdr v = case v of
+                 (VPair v1 v2) => v2
+                 (VNeutral (VSimga aT dT) neu) =>
+                   VNeutral (evalClosure dT (doCar v)) (NCdr neu)
+
+  partial
+  doApply : Value -> Value -> Value
+  doApply (VLambda closure) arg =
+    evalClosure closure arg
+  doApply (VNeutral (VPi dom ran) neu) arg =
+    VNeutral (evalClosure ran arg) (NApp neu (Normal' dom arg))
+
+  partial
+  doIndAbsurd : Value -> Value -> Value
+  doIndAbsurd (VNeutral VAbsurd neu) mot =
+    VNeutral mot (NIndAbsurd neu (Normal' VU mot))
+
+  partial
+  doReplace : Value -> Value -> Value -> Value
+  doReplace VSame mot base =
+    base
+  doReplace (VNeutral (VEq ty from to) neu) mot base =
+    VNeutral (doApply mot to)
+      (NReplace neu (Normal' motT mot) (Normal' baseT base))
+    where
+      motT = VPi ty (MkClosure ([]) (Name' "x") U)
+      baseT = doApply mot from
+
+  partial
+  indNatStepType : Value -> Value
+  indNatStepType mot =
+    eval [(Name' "mot", mot)]
+      (Pi (Name' "n-1") Nat
+        (Pi (Name' "almost") (App (Var (Name' "mot")) (Var (Name' "n-1")))
+          (App (Var (Name' "mot"))
+            (Add1 (Var (Name' "n-1"))))))
+
+  partial
+  doIndNat : Value -> Value -> Value -> Value -> Value
+  doIndNat VZero mot base step =
+    base
+  doIndNat (VAdd1 v) mot base step =
+    doApply (doApply step v) (doIndNat v mot base step)
+  doIndNat tgt@(VNeutral VNat neu) mot base step =
+    VNeutral (doApply mot tgt) (NIndNat neu
+      (Normal' (VPi VNat (MkClosure [] (Name' "k") U)) mot) (Normal' (doApply mot VZero) base)
+        (Normal' (indNatStepType mot) step))
