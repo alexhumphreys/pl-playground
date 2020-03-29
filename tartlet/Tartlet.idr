@@ -175,12 +175,6 @@ mutual
 extendEnv : Env -> Name -> Value -> Env
 extendEnv env x v = ((x, v) :: env)
 
-evalVar : Env -> Name -> Maybe Value
-evalVar [] x = Nothing
-evalVar ((y, v) :: env) x = case x == y of
-                                  True => Just v
-                                  False => evalVar env x
-
 -- definitions and dependent types
 data CtxEntry = Def Ty Value | IsA Ty
 
@@ -220,81 +214,130 @@ mkEnv ((x, e) :: ctx) =
 
 -- evaluator
 mutual
+  data Error
+    = MissingValue String
+    | CarError
+    | CdrError
+    | ApplyError
+    | IndAbsurdError
+    | DoReplaceError
+    | DoIndNatError
+
   partial
-  evalClosure : Closure -> Value -> Value
+  evalClosure : Closure -> Value -> Either Error Value
   evalClosure (MkClosure env x e) v =
     eval (extendEnv env x v) e
 
+  evalVar : Env -> Name -> Either Error Value
+  evalVar [] x = Left (MissingValue (show x ++ " not found in env"))
+  evalVar ((y, v) :: env) x = case x == y of
+                                    True => Right v
+                                    False => evalVar env x
+
   partial
-  eval : Env -> Expr -> Value
-  eval env (Var x) = ?eval_rhs_1
-  eval env (Pi x dom ran) = VPi (eval env dom) (MkClosure env x ran)
-  eval env (Lambda x body) = VLambda (MkClosure env x body)
-  eval env (App rator rand) = doApply (eval env rator) (eval env rand)
-  eval env (Sigma x carType cdrType) = VSimga (eval env carType) (MkClosure env x cdrType)
-  eval env (Cons a d) = VPair (eval env a) (eval env d)
-  eval env (Car e) = doCar (eval env e)
-  eval env (Cdr e) = doCdr (eval env e)
-  eval env Nat = VNat
-  eval env Zero = VZero
-  eval env (Add1 e) = VAdd1 (eval env e)
+  eval : Env -> Expr -> Either Error Value
+  eval env (Var x) = evalVar env x
+  eval env (Pi x dom ran) =
+    do dom' <- eval env dom
+       Right (VPi dom' (MkClosure env x ran))
+  eval env (Lambda x body) = Right (VLambda (MkClosure env x body))
+  eval env (App rator rand) =
+    do rator' <- eval env rator
+       rand' <- eval env rand
+       doApply rator' rand'
+  eval env (Sigma x carType cdrType) =
+    do carType' <- eval env carType
+       Right (VSimga carType' (MkClosure env x cdrType))
+  eval env (Cons a d) =
+    do a' <- eval env a
+       d' <- eval env d
+       Right (VPair a' d')
+  eval env (Car e) =
+    do e' <- eval env e
+       doCar e'
+  eval env (Cdr e) =
+    do e' <- eval env e
+       doCdr e'
+  eval env Nat = Right VNat
+  eval env Zero = Right VZero
+  eval env (Add1 e) =
+    do e' <- eval env e
+       Right (VAdd1 e')
   eval env (IndNat tgt mot base step) =
-    doIndNat (eval env tgt) (eval env mot) (eval env base) (eval env step)
+    do tgt' <- eval env tgt
+       mot' <- eval env mot
+       base' <- eval env base
+       step' <- eval env step
+       doIndNat tgt' mot' base' step'
   eval env (Equal ty from to) =
-    VEq (eval env ty) (eval env from) (eval env to)
-  eval env Same = VSame
+    do ty' <- eval env ty
+       from' <- eval env from
+       to' <- eval env to
+       Right (VEq ty' from' to')
+  eval env Same = Right VSame
   eval env (Replace tgt mot base) =
-    doReplace (eval env tgt) (eval env mot) (eval env base)
-  eval env Trivial = VTrivial
-  eval env Sole = VSole
-  eval env Absurd = VAbsurd
+    do tgt' <- eval env tgt
+       mot' <- eval env mot
+       base' <- eval env base
+       doReplace tgt' mot' base'
+  eval env Trivial = Right VTrivial
+  eval env Sole = Right VSole
+  eval env Absurd = Right VAbsurd
   eval env (IndAbsurd tgt mot) =
-    doIndAbsurd (eval env tgt) (eval env mot)
-  eval env Atom = VAtom
-  eval env (Tick x) = VTick x
-  eval env U = VU
+    do tgt' <- eval env tgt
+       mot' <- eval env mot
+       doIndAbsurd tgt' mot'
+  eval env Atom = Right VAtom
+  eval env (Tick x) = Right (VTick x)
+  eval env U = Right VU
   eval env (The ty e) = eval env e
   eval env (SrcPos _ e) = eval env e
 
   -- eliminators
-  partial
-  doCar : Value -> Value
-  doCar (VPair v1 v2) = v1
+  doCar : Value -> Either Error Value
+  doCar (VPair v1 v2) = Right v1
   doCar (VNeutral (VSimga aT dT) neu) =
-    VNeutral aT (NCar neu)
+    Right (VNeutral aT (NCar neu))
+  doCar _ = Left CarError
 
   partial
-  doCdr : Value -> Value
-  doCdr v = case v of
-                 (VPair v1 v2) => v2
-                 (VNeutral (VSimga aT dT) neu) =>
-                   VNeutral (evalClosure dT (doCar v)) (NCdr neu)
+  doCdr : Value -> Either Error Value
+  doCdr (VPair v1 v2) = Right v2
+  doCdr v@(VNeutral (VSimga aT dT) neu) =
+    do v' <- doCar v
+       cl' <- evalClosure dT v'
+       Right (VNeutral cl' (NCdr neu))
+  doCdr _ = Left CdrError
 
   partial
-  doApply : Value -> Value -> Value
+  doApply : Value -> Value -> Either Error Value
   doApply (VLambda closure) arg =
     evalClosure closure arg
   doApply (VNeutral (VPi dom ran) neu) arg =
-    VNeutral (evalClosure ran arg) (NApp neu (Normal' dom arg))
+    do arg' <- evalClosure ran arg
+       Right (VNeutral arg' (NApp neu (Normal' dom arg)))
+  doApply _ _ = Left ApplyError
 
-  partial
-  doIndAbsurd : Value -> Value -> Value
+  doIndAbsurd : Value -> Value -> Either Error Value
   doIndAbsurd (VNeutral VAbsurd neu) mot =
-    VNeutral mot (NIndAbsurd neu (Normal' VU mot))
+    Right (VNeutral mot (NIndAbsurd neu (Normal' VU mot)))
+  doIndAbsurd _ _ = Left IndAbsurdError
 
   partial
-  doReplace : Value -> Value -> Value -> Value
+  doReplace : Value -> Value -> Value -> Either Error Value
   doReplace VSame mot base =
-    base
+    Right base
   doReplace (VNeutral (VEq ty from to) neu) mot base =
-    VNeutral (doApply mot to)
-      (NReplace neu (Normal' motT mot) (Normal' baseT base))
+    do v' <- doApply mot to
+       baseT' <- doApply mot from
+       Right (VNeutral v'
+         (NReplace neu (Normal' motT mot) (Normal' baseT' base)))
     where
       motT = VPi ty (MkClosure ([]) (Name' "x") U)
-      baseT = doApply mot from
+  doReplace _ _ _ = Left DoReplaceError
 
   partial
-  indNatStepType : Value -> Value
+  indNatStepType : Value -> Either Error Value
   indNatStepType mot =
     eval [(Name' "mot", mot)]
       (Pi (Name' "n-1") Nat
@@ -303,12 +346,18 @@ mutual
             (Add1 (Var (Name' "n-1"))))))
 
   partial
-  doIndNat : Value -> Value -> Value -> Value -> Value
+  doIndNat : Value -> Value -> Value -> Value -> Either Error Value
   doIndNat VZero mot base step =
-    base
+    Right base
   doIndNat (VAdd1 v) mot base step =
-    doApply (doApply step v) (doIndNat v mot base step)
+    do rator' <- (doApply step v)
+       rand' <- (doIndNat v mot base step)
+       doApply rator' rand'
   doIndNat tgt@(VNeutral VNat neu) mot base step =
-    VNeutral (doApply mot tgt) (NIndNat neu
-      (Normal' (VPi VNat (MkClosure [] (Name' "k") U)) mot) (Normal' (doApply mot VZero) base)
-        (Normal' (indNatStepType mot) step))
+    do a' <- (doApply mot tgt)
+       b' <- (doApply mot VZero)
+       c' <- (indNatStepType mot)
+       Right (VNeutral a' (NIndNat neu
+         (Normal' (VPi VNat (MkClosure [] (Name' "k") U)) mot) (Normal' b' base)
+           (Normal' c' step)))
+  doIndNat _ _ _ _ = Left DoIndNatError
