@@ -46,8 +46,6 @@ Namespace = List (Name, Integer)
 %name Namespace ns1, ns2, ns3
 
 -- alpha equivalence
-aEquiv : Expr -> Expr -> Bool
-
 aEquivHelper : (i : Integer) ->
                Namespace -> Expr ->
                Namespace -> Expr ->
@@ -128,6 +126,9 @@ aEquivHelper i ns1 (SrcPos str1 e1) ns2 (SrcPos str2 e2) =
 
 aEquivHelper _ _ _ _ _ = False
 
+aEquiv : Expr -> Expr -> Bool
+aEquiv e1 e2 = aEquivHelper 0 [] e1 [] e2
+
 mutual
   data Neutral
     = NVar Name
@@ -157,7 +158,7 @@ mutual
   data Value
     = VPi Ty Closure
     | VLambda Closure
-    | VSimga Ty Closure
+    | VSigma Ty Closure
     | VPair Value Value
     | VNat
     | VZero
@@ -247,7 +248,7 @@ mutual
        doApply rator' rand'
   eval env (Sigma x carType cdrType) =
     do carType' <- eval env carType
-       Right (VSimga carType' (MkClosure env x cdrType))
+       Right (VSigma carType' (MkClosure env x cdrType))
   eval env (Cons a d) =
     do a' <- eval env a
        d' <- eval env d
@@ -296,14 +297,14 @@ mutual
   -- eliminators
   doCar : Value -> Either Error Value
   doCar (VPair v1 v2) = Right v1
-  doCar (VNeutral (VSimga aT dT) neu) =
+  doCar (VNeutral (VSigma aT dT) neu) =
     Right (VNeutral aT (NCar neu))
   doCar _ = Left CarError
 
   partial
   doCdr : Value -> Either Error Value
   doCdr (VPair v1 v2) = Right v2
-  doCdr v@(VNeutral (VSimga aT dT) neu) =
+  doCdr v@(VNeutral (VSigma aT dT) neu) =
     do v' <- doCar v
        cl' <- evalClosure dT v'
        Right (VNeutral cl' (NCdr neu))
@@ -361,3 +362,56 @@ mutual
          (Normal' (VPi VNat (MkClosure [] (Name' "k") U)) mot) (Normal' b' base)
            (Normal' c' step)))
   doIndNat _ _ _ _ = Left DoIndNatError
+
+-- fresh names
+
+nextName : Name -> Name
+nextName (Name' x) = Name' ((show x) ++ "'")
+
+-- could possibly fail for a list like [n', n'', n']
+freshen : List Name -> Name -> Name
+freshen [] n = n
+freshen (x :: used) n = case x == n of
+                             False => freshen used n
+                             True => freshen used (nextName n)
+
+-- reading back
+mutual
+  partial
+  readBackTyped : Ctx -> Ty -> Value -> Either Error Expr
+  readBackTyped ctx VNat VZero = Right Zero
+  readBackTyped ctx VNat (VAdd1 v) =
+    do n <- (readBackTyped ctx VNat v)
+       Right (Add1 n)
+  readBackTyped ctx (VPi dom ran) fun =
+    let x = freshen (ctxNames ctx) (closureName ran)
+        xVal = VNeutral dom (NVar x)
+        ctx' = extendCtx ctx x dom in
+    do ty' <- evalClosure ran xVal
+       v' <- doApply fun xVal
+       body <- readBackTyped ctx' ty' ty'
+       Right (Lambda x body)
+  readBackTyped ctx (VSigma aT dT) pair =
+    do carVal <- doCar pair
+       car <- readBackTyped ctx aT carVal
+       cdrT <- evalClosure dT carVal
+       cdrVal <- doCdr pair
+       cdr <- readBackTyped ctx cdrT cdrVal
+       Right (Cons car cdr)
+  readBackTyped ctx VAbsurd (VNeutral VAbsurd neu) = ?readBackTyped_rhs_12
+  readBackTyped ctx (VEq _ _ _) VSame = Right Same
+  readBackTyped ctx VAtom (VTick x) = Right (Tick x)
+  readBackTyped ctx VU VNat = Right Nat
+  readBackTyped ctx VU VAtom = Right Atom
+  readBackTyped ctx VU VTrivial = Right Trivial
+  readBackTyped ctx VU VAbsurd = Right Absurd
+  readBackTyped ctx VU (VEq t from to) = ?readBackTyped_rhs_21
+  readBackTyped ctx VU (VSigma aT dT) = ?readBackTyped_rhs_22
+  readBackTyped ctx VU (VPi aT bT) = ?readBackTyped_rhs_23
+  readBackTyped ctx VU VU = Right U
+  readBackTyped ctx t (VNeutral t' neu) = ?readBackTyped_rhs_2
+  readBackTyped _ otherT otherE = ?readBackTyped_rhs_3
+
+  partial
+  readBackNormal : Ctx -> Normal -> Either Error Expr
+  readBackNormal ctx (Normal' t v) = readBackTyped ctx t v
