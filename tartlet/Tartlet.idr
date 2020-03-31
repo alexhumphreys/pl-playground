@@ -223,6 +223,7 @@ mutual
     | IndAbsurdError
     | DoReplaceError
     | DoIndNatError
+    | ReadBackTypedError
 
   partial
   evalClosure : Closure -> Value -> Either Error Value
@@ -378,6 +379,35 @@ freshen (x :: used) n = case x == n of
 -- reading back
 mutual
   partial
+  readBackNeutral : Ctx -> Neutral -> Either Error Expr
+  readBackNeutral ctx (NVar x) = Right (Var x)
+  readBackNeutral ctx (NApp neu arg) =
+    do neu' <- readBackNeutral ctx neu
+       arg' <- readBackNormal ctx arg
+       Right (App neu' arg')
+  readBackNeutral ctx (NCar neu) =
+    do car <- readBackNeutral ctx neu
+       Right (Car car)
+  readBackNeutral ctx (NCdr neu) =
+    do cdr <- readBackNeutral ctx neu
+       Right (Cdr cdr)
+  readBackNeutral ctx (NIndNat neu mot base step) =
+    do neu' <- readBackNeutral ctx neu
+       mot' <- readBackNormal ctx mot
+       base' <- readBackNormal ctx base
+       step' <- readBackNormal ctx step
+       Right (IndNat neu' mot' base' step')
+  readBackNeutral ctx (NReplace neu mot base) =
+    do neu' <- readBackNeutral ctx neu
+       mot' <- readBackNormal ctx mot
+       base' <- readBackNormal ctx base
+       Right (Replace neu' mot' base')
+  readBackNeutral ctx (NIndAbsurd neu mot) =
+    do neu' <- readBackNeutral ctx neu
+       mot' <- readBackNormal ctx mot
+       Right (IndAbsurd (The Absurd neu') mot')
+
+  partial
   readBackTyped : Ctx -> Ty -> Value -> Either Error Expr
   readBackTyped ctx VNat VZero = Right Zero
   readBackTyped ctx VNat (VAdd1 v) =
@@ -398,19 +428,35 @@ mutual
        cdrVal <- doCdr pair
        cdr <- readBackTyped ctx cdrT cdrVal
        Right (Cons car cdr)
-  readBackTyped ctx VAbsurd (VNeutral VAbsurd neu) = ?readBackTyped_rhs_12
+  readBackTyped ctx VAbsurd (VNeutral VAbsurd neu) =
+    do a <- readBackNeutral ctx neu
+       Right (The Absurd a)
   readBackTyped ctx (VEq _ _ _) VSame = Right Same
   readBackTyped ctx VAtom (VTick x) = Right (Tick x)
   readBackTyped ctx VU VNat = Right Nat
   readBackTyped ctx VU VAtom = Right Atom
   readBackTyped ctx VU VTrivial = Right Trivial
   readBackTyped ctx VU VAbsurd = Right Absurd
-  readBackTyped ctx VU (VEq t from to) = ?readBackTyped_rhs_21
-  readBackTyped ctx VU (VSigma aT dT) = ?readBackTyped_rhs_22
-  readBackTyped ctx VU (VPi aT bT) = ?readBackTyped_rhs_23
+  readBackTyped ctx VU (VEq t from to) =
+    do a <- readBackTyped ctx VU t
+       b <- readBackTyped ctx t from
+       c <- readBackTyped ctx t to
+       Right (Equal a b c)
+  readBackTyped ctx VU (VSigma aT dT) =
+    let x = freshen (ctxNames ctx) (closureName dT) in
+        do a <- readBackTyped ctx VU aT
+           body <- evalClosure dT (VNeutral aT (NVar x))
+           d <- readBackTyped (extendCtx ctx x aT) VU body
+           Right (Sigma x a d)
+  readBackTyped ctx VU (VPi aT bT) =
+    let x = freshen (ctxNames ctx) (closureName bT) in
+        do a <- readBackTyped ctx VU aT
+           body <- evalClosure bT (VNeutral aT (NVar x))
+           b <- readBackTyped (extendCtx ctx x aT) VU body
+           Right (Pi x a b)
   readBackTyped ctx VU VU = Right U
-  readBackTyped ctx t (VNeutral t' neu) = ?readBackTyped_rhs_2
-  readBackTyped _ otherT otherE = ?readBackTyped_rhs_3
+  readBackTyped ctx t (VNeutral t' neu) = readBackNeutral ctx neu
+  readBackTyped _ otherT otherE = Left ReadBackTypedError
 
   partial
   readBackNormal : Ctx -> Normal -> Either Error Expr
