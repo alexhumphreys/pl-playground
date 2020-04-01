@@ -461,3 +461,37 @@ mutual
   partial
   readBackNormal : Ctx -> Normal -> Either Error Expr
   readBackNormal ctx (Normal' t v) = readBackTyped ctx t v
+
+-- checking/synthesis
+mutual
+  check : Ctx -> Expr -> Ty -> Either Error ()
+
+  synth : Ctx -> Expr -> Either Error Ty
+  synth ctx (Var x) = ?foo -- lookupType ctx x
+  synth ctx (Pi x a b) =
+    do check ctx a VU
+       v <- eval (mkEnv ctx) a
+       check (extendCtx ctx x v) b VU
+       Right VU
+  synth ctx (Lambda x y) = ?synth_rhs_3
+  synth ctx (App x y) = ?synth_rhs_4
+  synth ctx (Sigma x y z) = ?synth_rhs_5
+  synth ctx (Cons x y) = ?synth_rhs_6
+  synth ctx (Car x) = ?synth_rhs_7
+  synth ctx (Cdr x) = ?synth_rhs_8
+  synth ctx Nat = ?synth_rhs_9
+  synth ctx Zero = ?synth_rhs_10
+  synth ctx (Add1 x) = ?synth_rhs_11
+  synth ctx (IndNat x y z w) = ?synth_rhs_12
+  synth ctx (Equal x y z) = ?synth_rhs_13
+  synth ctx Same = ?synth_rhs_14
+  synth ctx (Replace x y z) = ?synth_rhs_15
+  synth ctx Trivial = ?synth_rhs_16
+  synth ctx Sole = ?synth_rhs_17
+  synth ctx Absurd = ?synth_rhs_18
+  synth ctx (IndAbsurd x y) = ?synth_rhs_19
+  synth ctx Atom = ?synth_rhs_20
+  synth ctx (Tick x) = ?synth_rhs_21
+  synth ctx U = ?synth_rhs_22
+  synth ctx (The x y) = ?synth_rhs_23
+  synth ctx (SrcPos x y) = ?synth_rhs_24
