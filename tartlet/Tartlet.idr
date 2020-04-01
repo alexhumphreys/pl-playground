@@ -195,15 +195,6 @@ extendCtx ctx x t = (x, (IsA t)) :: ctx
 define : Ctx -> Name -> Ty -> Value -> Ctx
 define ctx x t v = (x, Def t v) :: ctx
 
-lookupType : Ctx -> Name -> Either String Ty -- didn't use message type
-lookupType [] x = Left "unbound variable: " -- TODO ++ show x
-lookupType ((y, e) :: ctx) x =
-  (case x == y of
-        False => lookupType ctx x
-        True => (case e of
-                      (Def t _) => Right t
-                      (IsA t) => Right t))
-
 mkEnv : Ctx -> Env
 mkEnv [] = []
 mkEnv ((x, e) :: ctx) =
@@ -212,7 +203,6 @@ mkEnv ((x, e) :: ctx) =
         (Def _ v) => (x, v) :: env
         (IsA t) => let v = VNeutral t (NVar x) in
                        (x, v) :: env)
-
 -- evaluator
 mutual
   data Error
@@ -224,6 +214,7 @@ mutual
     | DoReplaceError
     | DoIndNatError
     | ReadBackTypedError
+    | ErrorMessage String
 
   partial
   evalClosure : Closure -> Value -> Either Error Value
@@ -462,36 +453,72 @@ mutual
   readBackNormal : Ctx -> Normal -> Either Error Expr
   readBackNormal ctx (Normal' t v) = readBackTyped ctx t v
 
+-- helpers
+lookupType : Ctx -> Name -> Either Error Ty -- didn't use message type
+lookupType [] x = Left (ErrorMessage "unbound variable: ") -- TODO ++ show x
+lookupType ((y, e) :: ctx) x =
+  (case x == y of
+        False => lookupType ctx x
+        True => (case e of
+                      (Def t _) => Right t
+                      (IsA t) => Right t))
+
+unexpected : Ctx -> String -> Value -> Either Error a
+
+isPi : Ctx -> Value -> Either Error (Ty, Closure)
+isPi _ (VPi a b) = Right (a, b)
+isPi ctx other = unexpected ctx "Not a Pi type" other
+
+isSigma : Ctx -> Value -> Either Error (Ty, Closure)
+isSigma _ (VSigma a b) = Right (a, b)
+isSigma ctx other = unexpected ctx "Not a Sigma type" other
+
 -- checking/synthesis
 mutual
   check : Ctx -> Expr -> Ty -> Either Error ()
 
+  partial
   synth : Ctx -> Expr -> Either Error Ty
-  synth ctx (Var x) = ?foo -- lookupType ctx x
+  synth ctx (Var x) = lookupType ctx x
   synth ctx (Pi x a b) =
     do check ctx a VU
        v <- eval (mkEnv ctx) a
        check (extendCtx ctx x v) b VU
        Right VU
-  synth ctx (Lambda x y) = ?synth_rhs_3
-  synth ctx (App x y) = ?synth_rhs_4
-  synth ctx (Sigma x y z) = ?synth_rhs_5
-  synth ctx (Cons x y) = ?synth_rhs_6
-  synth ctx (Car x) = ?synth_rhs_7
-  synth ctx (Cdr x) = ?synth_rhs_8
-  synth ctx Nat = ?synth_rhs_9
-  synth ctx Zero = ?synth_rhs_10
-  synth ctx (Add1 x) = ?synth_rhs_11
+  synth ctx (App rator rand) =
+    do funTy <- synth ctx rator
+       (a, b) <- isPi ctx funTy
+       check ctx rand a
+       body <- eval (mkEnv ctx) rand
+       evalClosure b body
+  synth ctx (Sigma x a b) = ?synth_rhs_5
+  synth ctx (Car e) =
+    do t <- synth ctx e
+       (aT, dT) <- isSigma ctx t
+       Right aT
+  synth ctx (Cdr e) =
+    do t <- synth ctx e
+       (aT, dT) <- isSigma ctx t
+       e' <- eval (mkEnv ctx) e
+       body <- doCar e'
+       evalClosure dT body
+  synth ctx Nat = Right VU
   synth ctx (IndNat x y z w) = ?synth_rhs_12
-  synth ctx (Equal x y z) = ?synth_rhs_13
-  synth ctx Same = ?synth_rhs_14
+  synth ctx (Equal ty from to)
+    = do check ctx ty VU
+         tyV <- eval (mkEnv ctx) ty
+         check ctx from tyV
+         check ctx to tyV
+         Right VU
   synth ctx (Replace x y z) = ?synth_rhs_15
-  synth ctx Trivial = ?synth_rhs_16
-  synth ctx Sole = ?synth_rhs_17
-  synth ctx Absurd = ?synth_rhs_18
+  synth ctx Trivial = Right VU
+  synth ctx Absurd = Right VU
   synth ctx (IndAbsurd x y) = ?synth_rhs_19
-  synth ctx Atom = ?synth_rhs_20
-  synth ctx (Tick x) = ?synth_rhs_21
-  synth ctx U = ?synth_rhs_22
-  synth ctx (The x y) = ?synth_rhs_23
-  synth ctx (SrcPos x y) = ?synth_rhs_24
+  synth ctx Atom = Right VU
+  synth ctx U = Right VU
+  synth ctx (The ty expr)
+    = do check ctx ty VU
+         tyV <- eval (mkEnv ctx) ty
+         check ctx expr tyV
+         Right tyV
+  synth ctx other = Left (ErrorMessage "Unable to synthesize a type for ") -- ++ show other
