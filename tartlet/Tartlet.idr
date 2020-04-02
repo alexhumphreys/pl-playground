@@ -4,6 +4,10 @@ data SourcePos = SP String Nat Nat
 Show SourcePos where
   show (SP x k j) = x ++ ":" ++ (show k) ++ "," ++ (show j)
 
+one : Nat
+one = unsafePerformIO $ do putStrLn "ALEX"
+                           pure 3
+
 data Name = Name' String
 
 Show Name where
@@ -473,9 +477,31 @@ isSigma : Ctx -> Value -> Either Error (Ty, Closure)
 isSigma _ (VSigma a b) = Right (a, b)
 isSigma ctx other = unexpected ctx "Not a Sigma type" other
 
+isNat : Ctx -> Value -> Either Error ()
+isNat _ VNat = Right ()
+isNat ctx other = unexpected ctx "Not Nat" other
+
+isEqual : Ctx -> Value -> Either Error (Ty, Value, Value)
+isEqual _ (VEq ty from to) = Right (ty, from, to)
+isEqual ctx other = unexpected ctx "Not an equality type" other
+
+isAbsurd : Ctx -> Value -> Either Error ()
+isAbsurd _ VAbsurd = Right ()
+isAbsurd ctx other = unexpected ctx "Not Absurd: " other
+
 -- checking/synthesis
 mutual
   check : Ctx -> Expr -> Ty -> Either Error ()
+  check ctx (Lambda x body) t = ?check_rhs_3
+  check ctx (Cons a d) t = ?check_rhs_6
+  check ctx Zero t = ?check_rhs_10
+  check ctx (Add1 n) t = ?check_rhs_11
+  check ctx Same t = ?check_rhs_14
+  check ctx Sole t = ?check_rhs_17
+  check ctx (Tick x) t = ?check_rhs_21
+  check ctx other t = ?check_rhs_1
+
+  convert : Ctx -> Ty -> Value -> Value -> Either Error ()
 
   partial
   synth : Ctx -> Expr -> Either Error Ty
@@ -491,7 +517,11 @@ mutual
        check ctx rand a
        body <- eval (mkEnv ctx) rand
        evalClosure b body
-  synth ctx (Sigma x a b) = ?synth_rhs_5
+  synth ctx (Sigma x a b)
+    = do check ctx a VU
+         a' <- eval (mkEnv ctx) a
+         check (extendCtx ctx x a') b VU
+         Right VU
   synth ctx (Car e) =
     do t <- synth ctx e
        (aT, dT) <- isSigma ctx t
@@ -503,17 +533,39 @@ mutual
        body <- doCar e'
        evalClosure dT body
   synth ctx Nat = Right VU
-  synth ctx (IndNat x y z w) = ?synth_rhs_12
+  synth ctx (IndNat tgt mot base step)
+    = do t <- synth ctx tgt
+         tgtV <- eval (mkEnv ctx) tgt
+         motTy <- eval (mkEnv []) (Pi (Name' "x") Nat U)
+         check ctx mot motTy
+         motV <- eval (mkEnv ctx) mot
+         z' <- doApply motV VZero
+         check ctx base z'
+         m' <- indNatStepType motV
+         check ctx step m'
+         doApply motV tgtV
   synth ctx (Equal ty from to)
     = do check ctx ty VU
          tyV <- eval (mkEnv ctx) ty
          check ctx from tyV
          check ctx to tyV
          Right VU
-  synth ctx (Replace x y z) = ?synth_rhs_15
+  synth ctx (Replace tgt mot base)
+    = do t <- synth ctx tgt
+         (ty, from, to) <- isEqual ctx t
+         motTy <- eval ([(Name' "ty", ty)]) (Pi (Name' "x") (Var (Name' "ty")) U)
+         check ctx mot motTy
+         motV <- eval (mkEnv ctx) mot
+         fromV <- doApply motV from
+         check ctx base fromV
+         doApply motV to
   synth ctx Trivial = Right VU
   synth ctx Absurd = Right VU
-  synth ctx (IndAbsurd x y) = ?synth_rhs_19
+  synth ctx (IndAbsurd tgt mot)
+    = do t <- synth ctx tgt
+         isAbsurd ctx t
+         check ctx mot VU
+         eval (mkEnv ctx) mot
   synth ctx Atom = Right VU
   synth ctx U = Right VU
   synth ctx (The ty expr)
