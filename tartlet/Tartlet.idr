@@ -489,17 +489,32 @@ isAbsurd : Ctx -> Value -> Either Error ()
 isAbsurd _ VAbsurd = Right ()
 isAbsurd ctx other = unexpected ctx "Not Absurd: " other
 
+isTrivial : Ctx -> Value -> Either Error ()
+isTrivial _ VTrivial = Right ()
+isTrivial ctx other = unexpected ctx "Not Trivial" other
+
+isAtom : Ctx -> Value -> Either Error ()
+isAtom _ VAtom = Right ()
+isAtom ctx other = unexpected ctx "Not Atom" other
+
 -- checking/synthesis
 mutual
+  partial
   check : Ctx -> Expr -> Ty -> Either Error ()
   check ctx (Lambda x body) t = ?check_rhs_3
   check ctx (Cons a d) t = ?check_rhs_6
-  check ctx Zero t = ?check_rhs_10
-  check ctx (Add1 n) t = ?check_rhs_11
-  check ctx Same t = ?check_rhs_14
-  check ctx Sole t = ?check_rhs_17
-  check ctx (Tick x) t = ?check_rhs_21
-  check ctx other t = ?check_rhs_1
+  check ctx Zero t = isNat ctx t
+  check ctx (Add1 n) t = do
+    isNat ctx t
+    check ctx n VNat
+  check ctx Same t = do
+    (t, from, to) <- isEqual ctx t
+    convert ctx t from to
+  check ctx Sole t = isTrivial ctx t
+  check ctx (Tick x) t = isAtom ctx t
+  check ctx other t = do
+    t' <- synth ctx other
+    convert ctx VU t' t
 
   convert : Ctx -> Ty -> Value -> Value -> Either Error ()
 
